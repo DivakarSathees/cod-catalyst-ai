@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, Settings, FileText, ChevronDown } from "lucide-react";
+import { Trash2, Edit, Save, X, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 interface Testcase {
@@ -38,6 +39,11 @@ export default function Testcases() {
   const [testcases, setTestcases] = useState<Testcase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sessionTitle, setSessionTitle] = useState("Test Cases");
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBuffer, setEditBuffer] = useState<Partial<Testcase>>({});
+  const [descriptionText, setDescriptionText] = useState<string>("");
+  const [isBuilding, setIsBuilding] = useState<boolean>(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -50,6 +56,29 @@ export default function Testcases() {
     };
     checkAuth();
   }, [sessionId, navigate]);
+
+  useEffect(() => {
+    // load saved weights/configs
+    const loadConfigs = async () => {
+      if (!sessionId) return;
+      try {
+        const { data } = await supabase.from("testcase_configs").select("*").eq("session_id", sessionId).single();
+        if (data) {
+          const w: Record<string, number> = {};
+          Object.keys(CATEGORY_NAMES).forEach((k) => {
+            const key = `${k}_weight`;
+            if (data[key] !== undefined) {
+              w[k] = Number(data[key]) || 0;
+            }
+          });
+          setWeights(w);
+        }
+      } catch (err) {
+        // ignore if not present
+      }
+    };
+    loadConfigs();
+  }, [sessionId]);
 
   const fetchTestcases = async () => {
     if (!sessionId) return;
@@ -72,6 +101,13 @@ export default function Testcases() {
         .single();
 
       if (sessionData) setSessionTitle(sessionData.title);
+      const { data: descData } = await supabase
+        .from("project_descriptions")
+        .select("full_description")
+        .eq("session_id", sessionId)
+        .single();
+
+      if (descData) setDescriptionText(descData.full_description);
     } catch (error) {
       console.error("Error fetching testcases:", error);
       toast({ title: "Error", description: "Failed to load test cases.", variant: "destructive" });
@@ -183,6 +219,102 @@ export default function Testcases() {
     toast({ title: "Downloaded", description: "Test cases exported as PDF." });
   };
 
+  // Edit/delete handlers
+  const startEdit = (tc: Testcase) => {
+    setEditingId(tc.id);
+    setEditBuffer({ ...tc });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditBuffer({});
+  };
+
+  const saveEdit = async (id: string) => {
+    try {
+      const payload = {
+        description: editBuffer.description || "",
+        steps: editBuffer.steps || "",
+        expected_input: editBuffer.expected_input || "",
+        expected_output: editBuffer.expected_output || "",
+      };
+      const { error } = await supabase.from("generated_testcases").update(payload).eq("id", id as unknown as string);
+      if (error) throw error;
+      setTestcases((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } : t)));
+      toast({ title: "Saved", description: "Test case updated." });
+      cancelEdit();
+    } catch (err) {
+      console.error("Error saving testcase:", err);
+      toast({ title: "Error", description: "Failed to save test case.", variant: "destructive" });
+    }
+  };
+
+  const deleteTestcase = async (id: string) => {
+    if (!confirm("Delete this test case?")) return;
+    try {
+      const { error } = await supabase.from("generated_testcases").delete().eq("id", id as unknown as string);
+      if (error) throw error;
+      setTestcases((prev) => prev.filter((t) => t.id !== id));
+      toast({ title: "Deleted", description: "Test case removed." });
+    } catch (err) {
+      console.error("Error deleting testcase:", err);
+      toast({ title: "Error", description: "Failed to delete test case.", variant: "destructive" });
+    }
+  };
+
+  const handleBuildSolution = async () => {
+    if (!sessionId) {
+      toast({ title: "Error", description: "No session selected.", variant: "destructive" });
+      return;
+    }
+
+    setIsBuilding(true);
+    try {
+      const stripHtml = (html: string) => {
+        if (!html) return "";
+        try {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          return doc.body.textContent || "";
+        } catch (e) {
+          // fallback to crude regex
+          return html.replace(/<[^>]+>/g, "");
+        }
+      };
+      // use latest descriptionText (fetched earlier)
+      const payload = {
+        prompt: stripHtml(descriptionText),
+        testcases: testcases.map((t) => ({
+          id: t.id,
+          category: t.category,
+          test_id: t.test_id,
+          description: t.description,
+          steps: t.steps,
+          expected_input: t.expected_input,
+          expected_output: t.expected_output,
+        })),
+      };
+
+      const res = await fetch("http://0.0.0.0:8000/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `Build failed with status ${res.status}`);
+      }
+
+      const result = await res.json().catch(() => ({}));
+      toast({ title: "Build started", description: result.message || "Build request accepted." });
+    } catch (err) {
+      console.error("Build error:", err);
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to start build.", variant: "destructive" });
+    } finally {
+      setIsBuilding(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen gradient-subtle flex items-center justify-center">
@@ -209,6 +341,17 @@ export default function Testcases() {
             <Button variant="outline" onClick={() => navigate(`/configure-testcases/${sessionId}`)}>
               <Settings className="w-4 h-4 mr-2" />
               Reconfigure
+            </Button>
+            <Button onClick={handleBuildSolution} disabled={isBuilding} variant="secondary">
+              {isBuilding ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Building...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 mr-2" /> Build Solution
+                </>
+              )}
             </Button>
             <Button onClick={downloadPDF} className="gradient-primary shadow-elegant">
               <Download className="w-4 h-4 mr-2" />
@@ -247,30 +390,90 @@ export default function Testcases() {
                     <div className="px-6 pb-4 space-y-4">
                       {tests.map((tc) => (
                         <div key={tc.id} className="p-4 rounded-lg bg-muted/50 border border-border/50">
-                          <div className="flex items-start gap-3 mb-3">
-                            <Badge className="shrink-0 gradient-primary text-primary-foreground">{tc.test_id}</Badge>
-                            <p className="font-medium">{tc.description}</p>
-                          </div>
-                          {tc.steps && (
-                            <div className="mb-2">
-                              <span className="text-xs font-medium text-muted-foreground uppercase">Steps:</span>
-                              <p className="text-sm mt-1 whitespace-pre-wrap">{tc.steps}</p>
+                          <div className="flex items-start gap-3 mb-3 justify-between">
+                            <div className="flex items-start gap-3">
+                              <Badge className="shrink-0 gradient-primary text-primary-foreground">{tc.test_id}</Badge>
+                              <div>
+                                <p className="font-medium">{tc.description}</p>
+                                <div className="text-xs text-muted-foreground">Category weight: {weights[tc.category] ?? "-"}%</div>
+                              </div>
                             </div>
-                          )}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                            {tc.expected_input && (
-                              <div>
-                                <span className="text-xs font-medium text-muted-foreground uppercase">Expected Input:</span>
-                                <p className="text-sm mt-1">{tc.expected_input}</p>
-                              </div>
-                            )}
-                            {tc.expected_output && (
-                              <div>
-                                <span className="text-xs font-medium text-muted-foreground uppercase">Expected Output:</span>
-                                <p className="text-sm mt-1">{tc.expected_output}</p>
-                              </div>
-                            )}
+                            <div className="flex gap-2">
+                              {editingId !== tc.id ? (
+                                <>
+                                  <Button size="sm" variant="ghost" onClick={() => startEdit(tc)}>
+                                    <Edit className="w-4 h-4 mr-2" /> Edit
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => deleteTestcase(tc.id)}>
+                                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button size="sm" onClick={() => saveEdit(tc.id)}>
+                                    <Save className="w-4 h-4 mr-2" /> Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                                    <X className="w-4 h-4 mr-2" /> Cancel
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
+
+                          {editingId === tc.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                value={editBuffer.description as string || ""}
+                                onChange={(e) => setEditBuffer((b) => ({ ...b, description: e.target.value }))}
+                                className="w-full rounded border p-2"
+                                rows={3}
+                              />
+                              <input
+                                value={editBuffer.steps as string || ""}
+                                onChange={(e) => setEditBuffer((b) => ({ ...b, steps: e.target.value }))}
+                                className="w-full rounded border p-2"
+                                placeholder="Steps"
+                              />
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                                <input
+                                  value={editBuffer.expected_input as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, expected_input: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  placeholder="Expected Input"
+                                />
+                                <input
+                                  value={editBuffer.expected_output as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, expected_output: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  placeholder="Expected Output"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {tc.steps && (
+                                <div className="mb-2">
+                                  <span className="text-xs font-medium text-muted-foreground uppercase">Steps:</span>
+                                  <p className="text-sm mt-1 whitespace-pre-wrap">{tc.steps}</p>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                                {tc.expected_input && (
+                                  <div>
+                                    <span className="text-xs font-medium text-muted-foreground uppercase">Expected Input:</span>
+                                    <p className="text-sm mt-1">{tc.expected_input}</p>
+                                  </div>
+                                )}
+                                {tc.expected_output && (
+                                  <div>
+                                    <span className="text-xs font-medium text-muted-foreground uppercase">Expected Output:</span>
+                                    <p className="text-sm mt-1">{tc.expected_output}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

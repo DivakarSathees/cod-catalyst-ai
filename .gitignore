@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 
 subabase access token = sbp_b52ecd455f8ae1139bbf8d1b375b70355c611fa3
+npx supabase functions deploy chat

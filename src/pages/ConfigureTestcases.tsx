@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, TestTube, Loader2, AlertCircle } from "lucide-react";
+import { Trash2, Edit, Save, X } from "lucide-react";
 
 interface TestcaseCategory {
   id: string;
@@ -15,6 +16,18 @@ interface TestcaseCategory {
   description: string;
   enabled: boolean;
   weight: number;
+}
+
+interface GeneratedTestcase {
+  id: string;
+  session_id: string;
+  user_id: string;
+  category: string;
+  test_id: string;
+  description: string;
+  steps: string;
+  expected_input: string;
+  expected_output: string;
 }
 
 const INITIAL_CATEGORIES: TestcaseCategory[] = [
@@ -36,6 +49,9 @@ export default function ConfigureTestcases() {
   const [categories, setCategories] = useState<TestcaseCategory[]>(INITIAL_CATEGORIES);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [testcases, setTestcases] = useState<GeneratedTestcase[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBuffer, setEditBuffer] = useState<Partial<GeneratedTestcase>>({});
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -45,6 +61,7 @@ export default function ConfigureTestcases() {
         return;
       }
       loadExistingConfig();
+      loadGeneratedTestcases();
     };
     checkAuth();
   }, [sessionId, navigate]);
@@ -70,6 +87,26 @@ export default function ConfigureTestcases() {
       }
     } catch (error) {
       // No existing config, use defaults
+    }
+  };
+
+  const loadGeneratedTestcases = async () => {
+    if (!sessionId) return;
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("generated_testcases")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("id", { ascending: true });
+
+      if (error) throw error;
+      setTestcases((data as GeneratedTestcase[]) || []);
+    } catch (err) {
+      console.error("Error loading testcases:", err);
+      toast({ title: "Error", description: "Failed to load test cases.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -180,6 +217,55 @@ export default function ConfigureTestcases() {
     }
   };
 
+  // Testcase actions
+  const startEdit = (tc: GeneratedTestcase) => {
+    setEditingId(tc.id);
+    setEditBuffer({ ...tc });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditBuffer({});
+  };
+
+  const saveEdit = async (id: string) => {
+    try {
+      const payload = {
+        description: editBuffer.description || "",
+        steps: editBuffer.steps || "",
+        expected_input: editBuffer.expected_input || "",
+        expected_output: editBuffer.expected_output || "",
+      };
+
+      const { error } = await supabase
+        .from("generated_testcases")
+        .update(payload)
+        .eq("id", id as unknown as string);
+
+      if (error) throw error;
+
+      setTestcases((prev) => prev.map((t) => (t.id === id ? { ...t, ...payload } as GeneratedTestcase : t)));
+      toast({ title: "Saved", description: "Test case updated." });
+      cancelEdit();
+    } catch (err) {
+      console.error("Error saving testcase:", err);
+      toast({ title: "Error", description: "Failed to save test case.", variant: "destructive" });
+    }
+  };
+
+  const deleteTestcase = async (id: string) => {
+    if (!confirm("Delete this test case?")) return;
+    try {
+  const { error } = await supabase.from("generated_testcases").delete().eq("id", id as unknown as string);
+      if (error) throw error;
+      setTestcases((prev) => prev.filter((t) => t.id !== id));
+      toast({ title: "Deleted", description: "Test case removed." });
+    } catch (err) {
+      console.error("Error deleting testcase:", err);
+      toast({ title: "Error", description: "Failed to delete test case.", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="min-h-screen gradient-subtle">
       {/* Header */}
@@ -276,6 +362,102 @@ export default function ConfigureTestcases() {
             </Card>
           ))}
         </div>
+
+        {/* Generated Testcases */}
+        {/* <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-4">Generated Testcases</h3>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading test cases...</p>
+          ) : testcases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No generated test cases yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {testcases.map((tc) => {
+                const cat = categories.find((c) => c.id === tc.category);
+                return (
+                  <Card key={tc.id} className="relative">
+                    <CardContent>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-sm text-muted-foreground">Category: {cat?.name || tc.category}</div>
+                              <div className="font-medium">{tc.test_id}</div>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Weight: <span className="font-medium">{cat?.weight ?? "-"}%</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-2">
+                            {editingId === tc.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={editBuffer.description as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, description: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  rows={3}
+                                />
+                                <input
+                                  value={editBuffer.steps as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, steps: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  placeholder="Steps"
+                                />
+                                <input
+                                  value={editBuffer.expected_input as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, expected_input: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  placeholder="Expected Input"
+                                />
+                                <input
+                                  value={editBuffer.expected_output as string || ""}
+                                  onChange={(e) => setEditBuffer((b) => ({ ...b, expected_output: e.target.value }))}
+                                  className="w-full rounded border p-2"
+                                  placeholder="Expected Output"
+                                />
+                                <div className="flex gap-2 mt-2">
+                                  <Button size="sm" onClick={() => saveEdit(tc.id)}>
+                                    <Save className="w-4 h-4 mr-2" /> Save
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                                    <X className="w-4 h-4 mr-2" /> Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm text-muted-foreground">{tc.description}</p>
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  <div>Steps: {tc.steps || "-"}</div>
+                                  <div>Expected Input: {tc.expected_input || "-"}</div>
+                                  <div>Expected Output: {tc.expected_output || "-"}</div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 ml-4">
+                          {editingId !== tc.id ? (
+                            <>
+                              <Button size="sm" variant="ghost" onClick={() => startEdit(tc as any)}>
+                                <Edit className="w-4 h-4 mr-2" /> Edit
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => deleteTestcase(tc.id)}>
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div> */}
       </main>
     </div>
   );

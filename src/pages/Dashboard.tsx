@@ -45,13 +45,47 @@ export default function Dashboard() {
 
   const fetchSessions = async () => {
     try {
+      // fetch sessions and include project description (one-to-one)
       const { data, error } = await supabase
         .from("chat_sessions")
-        .select("*")
+        .select("*, project_descriptions(full_description)")
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setSessions(data || []);
+      // Normalize titles: if title is the default "New Project", try to extract a title from
+      // the stored project description HTML (full_description) when available.
+      const normalizeTitle = (session: any) => {
+        let title = session.title || "New Project";
+        if (!title || title === "New Project") {
+          const full = session.project_descriptions?.full_description || session.full_description || "";
+          if (full) {
+            // try to extract from <title> or first <h1>
+            try {
+              const doc = new DOMParser().parseFromString(full, "text/html");
+              const t = doc.querySelector("title")?.textContent?.trim();
+              if (t) return t;
+              const h1 = doc.querySelector("h1")?.textContent?.trim();
+              if (h1) return h1;
+              // fallback: first non-empty text node
+              const bodyText = doc.body.textContent?.trim();
+              if (bodyText) return bodyText.split("\n").map(s=>s.trim()).find(Boolean) || "New Project";
+            } catch (e) {
+              // fallback to crude regex
+              const m = full.match(/<title>(.*?)<\/title>/i);
+              if (m && m[1]) return m[1].trim();
+            }
+          }
+        }
+        return title;
+      };
+
+      setSessions((data || []).map((s: any) => ({
+        id: s.id,
+        title: normalizeTitle(s),
+        status: s.status,
+        created_at: s.created_at,
+        updated_at: s.updated_at,
+      })));
     } catch (error) {
       console.error("Error fetching sessions:", error);
       toast({ title: "Error", description: "Failed to load your projects.", variant: "destructive" });

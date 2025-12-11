@@ -118,7 +118,12 @@ export default function ProjectDescription() {
           </CardHeader>
           <CardContent>
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{description}</ReactMarkdown>
+              {/* <ReactMarkdown>{description}</ReactMarkdown> */}
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: description }}
+              />
+
             </div>
           </CardContent>
         </Card>
