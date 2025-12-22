@@ -111,9 +111,9 @@ serve(async (req) => {
 
   try {
     const { messages, memory, action } = await req.json();
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "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";
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
     const AZURE_ENDPOINT = Deno.env.get("AZURE_OPENAI_ENDPOINT") || "https://iamneo-qb.openai.azure.com/";
-    const AZURE_API_KEY = Deno.env.get("AZURE_OPENAI_API_KEY") || "BseWgixIxbzsRMTI9XcdwIS39aVLQT791lDu1gi3rBBFngSSOH7vJQQJ99BIACYeBjFXJ3w3AAABACOGv3VO";
+    const AZURE_API_KEY = Deno.env.get("AZURE_OPENAI_API_KEY") || "";
     const AZURE_DEPLOYMENT = Deno.env.get("AZURE_OPENAI_DEPLOYMENT") || "gpt-5-mini";
     const AZURE_API_VERSION = "2024-12-01-preview";
 
