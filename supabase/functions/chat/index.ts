@@ -111,9 +111,9 @@ serve(async (req) => {
 
   try {
     const { messages, memory, action } = await req.json();
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "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";
     const AZURE_ENDPOINT = Deno.env.get("AZURE_OPENAI_ENDPOINT") || "https://iamneo-qb.openai.azure.com/";
-    const AZURE_API_KEY = Deno.env.get("AZURE_OPENAI_API_KEY") || "";
+    const AZURE_API_KEY = Deno.env.get("AZURE_OPENAI_API_KEY") || "BseWgixIxbzsRMTI9XcdwIS39aVLQT791lDu1gi3rBBFngSSOH7vJQQJ99BIACYeBjFXJ3w3AAABACOGv3VO";
     const AZURE_DEPLOYMENT = Deno.env.get("AZURE_OPENAI_DEPLOYMENT") || "gpt-5-mini";
     const AZURE_API_VERSION = "2024-12-01-preview";
 
@@ -146,7 +146,7 @@ serve(async (req) => {
     let systemPrompt = SYSTEM_PROMPT;
 
     if (memory) {
-    const memoryContext = `
+      const memoryContext = `
 Current gathered information:
 - Questions already asked: ${memory.questions_asked.join(", ") || "None yet"}
 - User answers: ${JSON.stringify(memory.user_answers) || "{}"}
@@ -161,68 +161,112 @@ DO NOT ask about topics already covered.
     if (action === "generate_description") {
       const template = await fetchDescriptionTemplate("default_format");
 
+      //       systemPrompt = `
+      // You are generating a COMPILER-READY CODING PROBLEM.
+
+      // Create a professional problem statement with the following sections:
+
+      // 1. **Problem Title**
+      // 2. **Difficulty Level**
+      // 3. **Topic(s)**
+      // 4. **Problem Description**
+      //    - Clear explanation
+      //    - Scenario-based OR direct based on user choice
+      // 5. **Input Format**
+      // 6. **Output Format**
+      // 7. **Constraints**
+      // 8. **Sample Input**
+      // 1. **Problem Title**
+      // 2. **Difficulty Level**
+      // 3. **Topic(s)**
+      // 4. **Problem Description**
+      //    - Clear explanation
+      //    - Scenario-based OR direct based on user choice
+      // 5. **Input Format**
+      // 6. **Output Format**
+      // 7. **Constraints**
+      // 8. **Sample Input**
+      // 9. **Sample Output**
+      // 10. **Explanation**
+      // 11. **Edge Cases to Consider**
+      // 12. **Testcase Categories with Weightage**
+
+      // ### Testcase Categories Format:
+      // - Sample Testcases (10%)
+      // - Basic Functional Testcases (30%)
+      // - Boundary Testcases (20%)
+      // - Edge Case Testcases (20%)
+      // - Stress / Performance Testcases (20%)
+
+      // TEMPLATE (HTML):
+      // ${template}
+
+      // RULES:
+      // - Replace all placeholders: {{overview}}, {{model}}, {{service}}, etc.
+      // - Output must be ONLY the HTML content (no markdown, no commentary).
+      // - Follow competitive programming standards.
+      // - Problem must be unambiguous and executable.
+      // - Inputs and outputs must be compiler-friendly.
+      // - Difficulty must match constraints and logic.
+      // - Paraphrase and enhance user inputs by at least 10%.
+
+      // Use these gathered inputs:
+      // ${JSON.stringify(memory?.user_answers || {}, null, 2)}
+
+      // IMPORTANT:
+      // - Do NOT include solution.
+      // - Do NOT include hints.
+      // - Do NOT include code.
+      // - This is a PROBLEM STATEMENT ONLY.
+      // `;
+
       systemPrompt = `
 You are generating a COMPILER-READY CODING PROBLEM.
 
-Create a professional problem statement with the following sections:
+Output ONLY a valid JSON object with the following structure:
 
-1. **Problem Title**
-2. **Difficulty Level**
-3. **Topic(s)**
-4. **Problem Description**
-   - Clear explanation
-   - Scenario-based OR direct based on user choice
-5. **Input Format**
-6. **Output Format**
-7. **Constraints**
-8. **Sample Input**
-1. **Problem Title**
-2. **Difficulty Level**
-3. **Topic(s)**
-4. **Problem Description**
-   - Clear explanation
-   - Scenario-based OR direct based on user choice
-5. **Input Format**
-6. **Output Format**
-7. **Constraints**
-8. **Sample Input**
-9. **Sample Output**
-10. **Explanation**
-11. **Edge Cases to Consider**
-12. **Testcase Categories with Weightage**
+{
+  "problemTitle": "string - A clear, concise title for the problem",
+  "difficultyLevel": "string - One of: Easy, Medium, Hard, Expert",
+  "topics": "string - Comma-separated topics (e.g., 'Arrays, Dynamic Programming, Greedy')",
+  "problemDescription": "string - Detailed problem description with clear explanation. Use HTML formatting for better presentation.",
+  "inputFormat": "string - Precise input format specification. Use HTML formatting with <code> tags if needed.",
+  "outputFormat": "string - Precise output format specification. Use HTML formatting with <code> tags if needed.",
+  "constraints": "string - All constraints including time/space complexity, input size limits. Use HTML list formatting.",
+  "sampleInput": "string - Plain text sample input (no HTML, preserve exact formatting)",
+  "sampleOutput": "string - Plain text expected output (no HTML, preserve exact formatting)",
+  "explanation": "string - Clear explanation of the sample test case. Use HTML formatting.",
+  "edgeCases": "string - Edge cases to consider. Use HTML list formatting.",
+  "additionalNotes": "string - Any additional notes, tips, or clarifications. Can be empty."
+}
 
-### Testcase Categories Format:
-- Sample Testcases (10%)
-- Basic Functional Testcases (30%)
-- Boundary Testcases (20%)
-- Edge Case Testcases (20%)
-- Stress / Performance Testcases (20%)
-
-TEMPLATE (HTML):
-${template}
-
-RULES:
-- Replace all placeholders: {{overview}}, {{model}}, {{service}}, etc.
-- Output must be ONLY the HTML content (no markdown, no commentary).
-- Follow competitive programming standards.
-- Problem must be unambiguous and executable.
-- Inputs and outputs must be compiler-friendly.
-- Difficulty must match constraints and logic.
-- Paraphrase and enhance user inputs by at least 10%.
+CRITICAL RULES:
+1. Output ONLY valid JSON - no markdown code blocks, no commentary, no extra text
+2. Follow competitive programming standards
+3. Problem must be unambiguous and executable
+4. Inputs and outputs must be compiler-friendly
+5. Difficulty must match constraints and logic
+6. Use the gathered user inputs but enhance and paraphrase by at least 10%
+7. For HTML fields (problemDescription, inputFormat, outputFormat, constraints, explanation, edgeCases, additionalNotes):
+   - Use proper HTML tags: <p>, <ul>, <li>, <code>, <strong>, <em>
+   - Make it visually appealing and well-structured
+8. For plain text fields (sampleInput, sampleOutput):
+   - Use exact formatting without HTML tags
+   - Preserve whitespace and newlines
 
 Use these gathered inputs:
 ${JSON.stringify(memory?.user_answers || {}, null, 2)}
 
 IMPORTANT:
-- Do NOT include solution.
-- Do NOT include hints.
-- Do NOT include code.
-- This is a PROBLEM STATEMENT ONLY.
+- Do NOT include solution
+- Do NOT include hints or code
+- This is a PROBLEM STATEMENT ONLY
+- Output must be parseable JSON
 `;
-}
+    }
 
 
-    
+
     const url =
       `${AZURE_ENDPOINT}/openai/deployments/${AZURE_DEPLOYMENT}/chat/completions?api-version=${AZURE_API_VERSION}`;
 

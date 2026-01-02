@@ -28,7 +28,7 @@ export function useChat(sessionId: string | undefined) {
 
   const loadMessages = useCallback(async () => {
     if (!sessionId) return;
-    
+
     try {
       const { data: messagesData, error: messagesError } = await supabase
         .from("chat_messages")
@@ -74,7 +74,7 @@ export function useChat(sessionId: string | undefined) {
       if (!sessionId || !content.trim()) return;
 
       const userMsg: ChatMessage = { role: "user", content: content.trim() };
-      
+
       // Add user message to UI immediately
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
@@ -176,8 +176,8 @@ export function useChat(sessionId: string | undefined) {
 
         // Update memory - check if AI is ready to generate
         const isReady = assistantContent.toLowerCase().includes("ready to generate") ||
-                        assistantContent.toLowerCase().includes("shall i proceed");
-        
+          assistantContent.toLowerCase().includes("shall i proceed");
+
         if (isReady && !memory.ready_to_generate) {
           const newMemory = { ...memory, ready_to_generate: true };
           setMemory(newMemory);
@@ -299,12 +299,115 @@ export function useChat(sessionId: string | undefined) {
         content: fullDescription,
       });
 
-      // Parse and save project description
-      await supabase.from("project_descriptions").upsert({
+      console.log(fullDescription);
+
+      // Parse the JSON response
+      let parsedData: {
+        problemTitle: string;
+        difficultyLevel: string;
+        topics: string;
+        problemDescription: string;
+        inputFormat: string;
+        outputFormat: string;
+        constraints: string;
+        sampleInput: string;
+        sampleOutput: string;
+        explanation: string;
+        edgeCases: string;
+        additionalNotes: string;
+      };
+
+      try {
+        // Try to extract JSON if it's wrapped in markdown code blocks
+        let jsonStr = fullDescription.trim();
+        if (jsonStr.startsWith("```json")) {
+          jsonStr = jsonStr.replace(/^```json\s*/, "").replace(/```\s*$/, "");
+        } else if (jsonStr.startsWith("```")) {
+          jsonStr = jsonStr.replace(/^```\s*/, "").replace(/```\s*$/, "");
+        }
+
+        parsedData = JSON.parse(jsonStr);
+      } catch (error) {
+        console.error("Failed to parse JSON response:", error);
+        toast({
+          title: "Error",
+          description: "Failed to parse generated description. Please try again.",
+          variant: "destructive",
+        });
+        return null;
+      }
+
+      // Get next version
+      const { data: last, error } = await supabase
+        .from("project_descriptions")
+        .select("version")
+        .eq("session_id", sessionId)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ version: number }>();
+
+      if (error) throw error;
+
+      const nextVersion = (last?.version ?? 0) + 1;
+
+      // Reconstruct full_description for backward compatibility
+      const fullDescriptionText = `Problem Title
+${parsedData.problemTitle}
+
+Difficulty Level
+${parsedData.difficultyLevel}
+
+Topic(s)
+${parsedData.topics}
+
+Problem Description
+${parsedData.problemDescription}
+
+Input Format
+${parsedData.inputFormat}
+
+Output Format
+${parsedData.outputFormat}
+
+Constraints
+${parsedData.constraints}
+
+Sample Input
+${parsedData.sampleInput}
+
+Sample Output
+${parsedData.sampleOutput}
+
+Explanation
+${parsedData.explanation}
+
+Edge Cases to Consider
+${parsedData.edgeCases}
+
+Additional Notes
+${parsedData.additionalNotes}`;
+
+      // Insert new version with structured fields
+      await supabase.from("project_descriptions").insert({
         session_id: sessionId,
         user_id: user.id,
-        full_description: fullDescription,
+        version: nextVersion,
+        full_description: fullDescriptionText,
+        problem_title: parsedData.problemTitle,
+        difficulty_level: parsedData.difficultyLevel,
+        topics: parsedData.topics,
+        problem_description: parsedData.problemDescription,
+        input_format: parsedData.inputFormat,
+        output_format: parsedData.outputFormat,
+        constraints: parsedData.constraints,
+        sample_input: parsedData.sampleInput,
+        sample_output: parsedData.sampleOutput,
+        explanation: parsedData.explanation,
+        edge_cases: parsedData.edgeCases,
+        additional_notes: parsedData.additionalNotes,
       });
+
+
 
       // Update session status
       await supabase
