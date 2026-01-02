@@ -14,6 +14,7 @@ export interface ParsedDescription {
     explanation: string;
     edgeCases: string;
     additionalNotes: string;
+    full_description: string;
 }
 
 /**
@@ -33,6 +34,7 @@ export function parseDescription(text: string): ParsedDescription {
         explanation: "",
         edgeCases: "",
         additionalNotes: "",
+        full_description: "",
     };
 
     if (!text) return sections;

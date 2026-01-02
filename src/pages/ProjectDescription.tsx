@@ -11,10 +11,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Copy, Edit, TestTube, Check, Save, X, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Copy, Edit, TestTube, Check, Save, X, ChevronDown, ChevronUp, Code2 } from "lucide-react";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { parseDescription, textToHtml, type ParsedDescription } from "@/lib/descriptionParser";
 import { cn } from "@/lib/utils";
+import { SolutionEditor } from "@/components/SolutionEditor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 
 type ProjectDescriptionVersion = {
   id: string;
@@ -97,6 +100,7 @@ export default function ProjectDescription() {
     explanation: "",
     edgeCases: "",
     additionalNotes: "",
+    full_description: "",
   });
 
   // Collapsible sections state
@@ -170,6 +174,7 @@ export default function ProjectDescription() {
           explanation: descData[0].explanation || "",
           edgeCases: descData[0].edge_cases || "",
           additionalNotes: descData[0].additional_notes || "",
+          full_description: descData[0].full_description || "",
         });
       } else {
         // Fallback: Parse the description into sections for backward compatibility
@@ -231,6 +236,7 @@ export default function ProjectDescription() {
           explanation: selected.explanation || "",
           edgeCases: selected.edge_cases || "",
           additionalNotes: selected.additional_notes || "",
+          full_description: selected.full_description || "",
         });
       } else {
         // Fallback to parsing
@@ -440,237 +446,266 @@ ${htmlToPlainText(sections.additionalNotes)}`;
           </Button>
         </div>
 
-        {/* Main Problem Statement Section */}
-        <Card className="shadow-card border-border/50 mb-6">
-          <CardHeader
-            className="cursor-pointer flex flex-row items-center justify-between"
-            onClick={() => toggleSection("main")}
-          >
-            <CardTitle className="flex items-center gap-2">
-              <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm font-medium">Q1.</span>
-              Problem Statement
-            </CardTitle>
-            {expandedSections.main ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </CardHeader>
-          {expandedSections.main && (
-            <CardContent className="space-y-4">
-              {/* Problem Title */}
-              <div className="mb-4">
-                <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
-                  Problem Title:
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={parsedSections.problemTitle}
-                    onChange={(e) => updateSection("problemTitle", e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                ) : (
-                  <div className="px-3 py-2 bg-muted/30 rounded-lg font-medium">
-                    {parsedSections.problemTitle || "No title"}
-                  </div>
-                )}
-              </div>
+        <Tabs defaultValue="description" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="description">Problem Description</TabsTrigger>
+            <TabsTrigger value="solution" className="gap-2">
+              <Code2 className="w-4 h-4" />
+              Solution & Testing
+            </TabsTrigger>
+          </TabsList>
 
-              {/* Topics */}
-              <div className="mb-4">
-                <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
-                  Topic(s):
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={parsedSections.topics}
-                    onChange={(e) => updateSection("topics", e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="e.g., Arrays, Dynamic Programming"
-                  />
-                ) : (
-                  <div className="px-3 py-2 bg-muted/30 rounded-lg">
-                    {parsedSections.topics || "No topics"}
-                  </div>
-                )}
-              </div>
-
-              {/* Problem Description */}
-              <EditableSection
-                label="Problem Description"
-                value={parsedSections.problemDescription}
-                onChange={(val) => updateSection("problemDescription", val)}
-                isEditing={isEditing}
-                minHeight="200px"
-              />
-
-              {/* Constraints */}
-              <EditableSection
-                label="Constraints"
-                value={parsedSections.constraints}
-                onChange={(val) => updateSection("constraints", val)}
-                isEditing={isEditing}
-                minHeight="100px"
-              />
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Input/Output Format Section */}
-        <Card className="shadow-card border-border/50 mb-6">
-          <CardHeader
-            className="cursor-pointer flex flex-row items-center justify-between"
-            onClick={() => toggleSection("inputOutput")}
-          >
-            <CardTitle>Input & Output Format</CardTitle>
-            {expandedSections.inputOutput ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </CardHeader>
-          {expandedSections.inputOutput && (
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <EditableSection
-                label="Input Format"
-                value={parsedSections.inputFormat}
-                onChange={(val) => updateSection("inputFormat", val)}
-                isEditing={isEditing}
-                minHeight="150px"
-              />
-              <EditableSection
-                label="Output Format"
-                value={parsedSections.outputFormat}
-                onChange={(val) => updateSection("outputFormat", val)}
-                isEditing={isEditing}
-                minHeight="150px"
-              />
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Sample I/O & Explanation */}
-        <Card className="shadow-card border-border/50 mb-6">
-          <CardHeader
-            className="cursor-pointer flex flex-row items-center justify-between"
-            onClick={() => toggleSection("samples")}
-          >
-            <CardTitle>Sample Test Cases</CardTitle>
-            {expandedSections.samples ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </CardHeader>
-          {expandedSections.samples && (
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-6 mb-6">
-                <div>
-                  <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
-                    Sample Input:
-                  </label>
-                  <div className={cn(
-                    "border rounded-lg p-4 font-mono text-sm bg-[#1e1e1e] text-green-400 min-h-[100px]",
-                    isEditing && "cursor-text"
-                  )}>
+          <TabsContent value="description">
+            {/* Main Problem Statement Section */}
+            <Card className="shadow-card border-border/50 mb-6">
+              <CardHeader
+                className="cursor-pointer flex flex-row items-center justify-between"
+                onClick={() => toggleSection("main")}
+              >
+                <CardTitle className="flex items-center gap-2">
+                  <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm font-medium">Q1.</span>
+                  Problem Statement
+                </CardTitle>
+                {expandedSections.main ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </CardHeader>
+              {expandedSections.main && (
+                <CardContent className="space-y-4">
+                  {/* Problem Title */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
+                      Problem Title:
+                    </label>
                     {isEditing ? (
-                      <textarea
-                        value={parsedSections.sampleInput}
-                        onChange={(e) => updateSection("sampleInput", e.target.value)}
-                        className="w-full bg-transparent outline-none resize-none min-h-[80px] text-green-400"
+                      <input
+                        type="text"
+                        value={parsedSections.problemTitle}
+                        onChange={(e) => updateSection("problemTitle", e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
                       />
                     ) : (
-                      <pre className="whitespace-pre-wrap">{parsedSections.sampleInput}</pre>
+                      <div className="px-3 py-2 bg-muted/30 rounded-lg font-medium">
+                        {parsedSections.problemTitle || "No title"}
+                      </div>
                     )}
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
-                    Sample Output:
-                  </label>
-                  <div className={cn(
-                    "border rounded-lg p-4 font-mono text-sm bg-[#1e1e1e] text-green-400 min-h-[100px]",
-                    isEditing && "cursor-text"
-                  )}>
+
+                  {/* Topics */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
+                      Topic(s):
+                    </label>
                     {isEditing ? (
-                      <textarea
-                        value={parsedSections.sampleOutput}
-                        onChange={(e) => updateSection("sampleOutput", e.target.value)}
-                        className="w-full bg-transparent outline-none resize-none min-h-[80px] text-green-400"
+                      <input
+                        type="text"
+                        value={parsedSections.topics}
+                        onChange={(e) => updateSection("topics", e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="e.g., Arrays, Dynamic Programming"
                       />
                     ) : (
-                      <pre className="whitespace-pre-wrap">{parsedSections.sampleOutput}</pre>
+                      <div className="px-3 py-2 bg-muted/30 rounded-lg">
+                        {parsedSections.topics || "No topics"}
+                      </div>
                     )}
                   </div>
-                </div>
-              </div>
-              <EditableSection
-                label="Explanation"
-                value={parsedSections.explanation}
-                onChange={(val) => updateSection("explanation", val)}
-                isEditing={isEditing}
-                minHeight="120px"
-              />
-            </CardContent>
-          )}
-        </Card>
 
-        {/* Difficulty & Additional */}
-        <Card className="shadow-card border-border/50 mb-6">
-          <CardHeader
-            className="cursor-pointer flex flex-row items-center justify-between"
-            onClick={() => toggleSection("additional")}
-          >
-            <CardTitle>Additional Details</CardTitle>
-            {expandedSections.additional ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </CardHeader>
-          {expandedSections.additional && (
-            <CardContent>
-              {/* Difficulty Dropdown */}
-              <div className="mb-6">
-                <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
-                  Difficulty:
-                </label>
-                {isEditing ? (
-                  <Select
-                    value={parsedSections.difficultyLevel}
-                    onValueChange={(val) => updateSection("difficultyLevel", val)}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DIFFICULTY_OPTIONS.map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {level}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className={cn(
-                    "inline-block px-3 py-1.5 rounded-full text-sm font-medium",
-                    parsedSections.difficultyLevel === "Easy" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-                    parsedSections.difficultyLevel === "Medium" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-                    parsedSections.difficultyLevel === "Hard" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                    parsedSections.difficultyLevel === "Expert" && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-                    !["Easy", "Medium", "Hard", "Expert"].includes(parsedSections.difficultyLevel) && "bg-muted text-muted-foreground"
-                  )}>
-                    {parsedSections.difficultyLevel || "Not specified"}
+                  {/* Problem Description */}
+                  <EditableSection
+                    label="Problem Description"
+                    value={parsedSections.problemDescription}
+                    onChange={(val) => updateSection("problemDescription", val)}
+                    isEditing={isEditing}
+                    minHeight="200px"
+                  />
+
+                  {/* Constraints */}
+                  <EditableSection
+                    label="Constraints"
+                    value={parsedSections.constraints}
+                    onChange={(val) => updateSection("constraints", val)}
+                    isEditing={isEditing}
+                    minHeight="100px"
+                  />
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Input/Output Format Section */}
+            <Card className="shadow-card border-border/50 mb-6">
+              <CardHeader
+                className="cursor-pointer flex flex-row items-center justify-between"
+                onClick={() => toggleSection("inputOutput")}
+              >
+                <CardTitle>Input & Output Format</CardTitle>
+                {expandedSections.inputOutput ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </CardHeader>
+              {expandedSections.inputOutput && (
+                <CardContent className="grid md:grid-cols-2 gap-6">
+                  <EditableSection
+                    label="Input Format"
+                    value={parsedSections.inputFormat}
+                    onChange={(val) => updateSection("inputFormat", val)}
+                    isEditing={isEditing}
+                    minHeight="150px"
+                  />
+                  <EditableSection
+                    label="Output Format"
+                    value={parsedSections.outputFormat}
+                    onChange={(val) => updateSection("outputFormat", val)}
+                    isEditing={isEditing}
+                    minHeight="150px"
+                  />
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Sample I/O & Explanation */}
+            <Card className="shadow-card border-border/50 mb-6">
+              <CardHeader
+                className="cursor-pointer flex flex-row items-center justify-between"
+                onClick={() => toggleSection("samples")}
+              >
+                <CardTitle>Sample Test Cases</CardTitle>
+                {expandedSections.samples ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </CardHeader>
+              {expandedSections.samples && (
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
+                        Sample Input:
+                      </label>
+                      <div className={cn(
+                        "border rounded-lg p-4 font-mono text-sm bg-[#1e1e1e] text-green-400 min-h-[100px]",
+                        isEditing && "cursor-text"
+                      )}>
+                        {isEditing ? (
+                          <textarea
+                            value={parsedSections.sampleInput}
+                            onChange={(e) => updateSection("sampleInput", e.target.value)}
+                            className="w-full bg-transparent outline-none resize-none min-h-[80px] text-green-400"
+                          />
+                        ) : (
+                          <pre className="whitespace-pre-wrap">{parsedSections.sampleInput}</pre>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
+                        Sample Output:
+                      </label>
+                      <div className={cn(
+                        "border rounded-lg p-4 font-mono text-sm bg-[#1e1e1e] text-green-400 min-h-[100px]",
+                        isEditing && "cursor-text"
+                      )}>
+                        {isEditing ? (
+                          <textarea
+                            value={parsedSections.sampleOutput}
+                            onChange={(e) => updateSection("sampleOutput", e.target.value)}
+                            className="w-full bg-transparent outline-none resize-none min-h-[80px] text-green-400"
+                          />
+                        ) : (
+                          <pre className="whitespace-pre-wrap">{parsedSections.sampleOutput}</pre>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
+                  <EditableSection
+                    label="Explanation"
+                    value={parsedSections.explanation}
+                    onChange={(val) => updateSection("explanation", val)}
+                    isEditing={isEditing}
+                    minHeight="120px"
+                  />
+                </CardContent>
+              )}
+            </Card>
 
-              {/* Edge Cases */}
-              <EditableSection
-                label="Edge Cases to Consider"
-                value={parsedSections.edgeCases}
-                onChange={(val) => updateSection("edgeCases", val)}
-                isEditing={isEditing}
-                minHeight="120px"
-              />
+            {/* Difficulty & Additional */}
+            <Card className="shadow-card border-border/50 mb-6">
+              <CardHeader
+                className="cursor-pointer flex flex-row items-center justify-between"
+                onClick={() => toggleSection("additional")}
+              >
+                <CardTitle>Additional Details</CardTitle>
+                {expandedSections.additional ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </CardHeader>
+              {expandedSections.additional && (
+                <CardContent>
+                  {/* Difficulty Dropdown */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-foreground uppercase tracking-wide mb-2">
+                      Difficulty:
+                    </label>
+                    {isEditing ? (
+                      <Select
+                        value={parsedSections.difficultyLevel}
+                        onValueChange={(val) => updateSection("difficultyLevel", val)}
+                      >
+                        <SelectTrigger className="w-48">
+                          <SelectValue placeholder="Select difficulty" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DIFFICULTY_OPTIONS.map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className={cn(
+                        "inline-block px-3 py-1.5 rounded-full text-sm font-medium",
+                        parsedSections.difficultyLevel === "Easy" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                        parsedSections.difficultyLevel === "Medium" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+                        parsedSections.difficultyLevel === "Hard" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                        parsedSections.difficultyLevel === "Expert" && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                        !["Easy", "Medium", "Hard", "Expert"].includes(parsedSections.difficultyLevel) && "bg-muted text-muted-foreground"
+                      )}>
+                        {parsedSections.difficultyLevel || "Not specified"}
+                      </div>
+                    )}
+                  </div>
 
-              {/* Additional Notes */}
-              <EditableSection
-                label="Additional Notes"
-                value={parsedSections.additionalNotes}
-                onChange={(val) => updateSection("additionalNotes", val)}
-                isEditing={isEditing}
-                minHeight="100px"
-              />
-            </CardContent>
-          )}
-        </Card>
+                  {/* Edge Cases */}
+                  <EditableSection
+                    label="Edge Cases to Consider"
+                    value={parsedSections.edgeCases}
+                    onChange={(val) => updateSection("edgeCases", val)}
+                    isEditing={isEditing}
+                    minHeight="120px"
+                  />
+
+                  {/* Additional Notes */}
+                  <EditableSection
+                    label="Additional Notes"
+                    value={parsedSections.additionalNotes}
+                    onChange={(val) => updateSection("additionalNotes", val)}
+                    isEditing={isEditing}
+                    minHeight="100px"
+                  />
+                </CardContent>
+              )}
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="solution">
+            <SolutionEditor
+              sessionId={sessionId!}
+              problemDescription={{
+                problemTitle: parsedSections.problemTitle,
+                problemDescription: parsedSections.problemDescription,
+                inputFormat: parsedSections.inputFormat,
+                outputFormat: parsedSections.outputFormat,
+                constraints: parsedSections.constraints,
+                sampleInput: parsedSections.sampleInput,
+                sampleOutput: parsedSections.sampleOutput,
+                difficulty: parsedSections.difficultyLevel,
+                full_description: parsedSections.full_description,
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
